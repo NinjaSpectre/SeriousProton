@@ -4,6 +4,10 @@
 #ifdef _MSC_VER
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#elif defined(__ANDROID__)
+#include <SFML/System/NativeActivity.hpp>
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
 #else
 #include <dirent.h>
 #endif
@@ -61,12 +65,12 @@ public:
     virtual ~FileResourceStream()
     {
     }
-    
+
     bool isOpen()
     {
         return open_success;
     }
-    
+
     virtual sf::Int64 read(void* data, sf::Int64 size)
     {
         return stream.read(data, size);
@@ -135,11 +139,24 @@ void DirectoryResourceProvider::findResources(std::vector<string>& found_files, 
     } while (FindNextFileA(handle, &data));
 
     FindClose(handle);
+#elif defined(__ANDROID__)
+    ANativeActivity* activity = sf::getNativeActivity();
+    AAssetDir* dir = AAssetManager_openDir(activity->assetManager, (basepath + path).c_str());
+    if (dir)
+    {
+        const char* filename;
+        while ((filename = AAssetDir_getNextFileName(dir)) != nullptr)
+        {
+            if (searchMatch(filename, searchPattern))
+                found_files.push_back(filename);
+        }
+        AAssetDir_close(dir);
+    }
 #else
     DIR* dir = opendir((basepath + path).c_str());
     if (!dir)
         return;
-    
+
     struct dirent *entry;
     while ((entry = readdir(dir)) != nullptr)
     {
